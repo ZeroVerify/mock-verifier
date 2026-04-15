@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ZeroVerify — Mock Merchant</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f8fafc;
+      color: #1e293b;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #fff;
+      border-bottom: 1px solid #e2e8f0;
+      padding: 1rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    header h1 { font-size: 1.125rem; font-weight: 600; }
+    header span { font-size: 0.8rem; color: #64748b; background: #f1f5f9; padding: 0.2rem 0.5rem; border-radius: 4px; }
+
+    .hero {
+      max-width: 560px;
+      margin: 4rem auto 2rem;
+      padding: 0 1.5rem;
+      text-align: center;
+    }
+
+    .hero h2 { font-size: 1.75rem; font-weight: 700; margin-bottom: 0.75rem; }
+    .hero p  { color: #64748b; margin-bottom: 2rem; line-height: 1.6; }
+
+    .btn {
+      display: inline-block;
+      background: linear-gradient(135deg, #06b6d4, #8b5cf6);
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 600;
+      padding: 0.875rem 2rem;
+      border-radius: 8px;
+      text-decoration: none;
+      transition: opacity 0.15s;
+    }
+    .btn:hover { opacity: 0.88; }
+
+    .feed-header {
+      max-width: 860px;
+      margin: 2.5rem auto 0.75rem;
+      padding: 0 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .feed-header h3 { font-size: 0.875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+    #feed {
+      max-width: 860px;
+      margin: 0 auto 3rem;
+      padding: 0 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .empty {
+      text-align: center;
+      color: #94a3b8;
+      padding: 3rem 0;
+      font-size: 0.9rem;
+    }
+
+    .card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 1.25rem 1.5rem;
+      animation: slideIn 0.25s ease;
+    }
+    @keyframes slideIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 0.3rem 0.75rem;
+      border-radius: 999px;
+    }
+    .badge.valid   { background: #dcfce7; color: #15803d; }
+    .badge.invalid { background: #fee2e2; color: #b91c1c; }
+
+    .timestamp { font-size: 0.78rem; color: #94a3b8; }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    .panel { background: #f8fafc; border-radius: 8px; padding: 1rem; }
+    .panel h4 { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.75rem; }
+    .panel.zv h4  { color: #0891b2; }
+    .panel.trad h4 { color: #dc2626; }
+
+    .signals { list-style: none; font-size: 0.78rem; display: flex; flex-direction: column; gap: 0.4rem; }
+    .signals li { display: flex; flex-direction: column; gap: 0.1rem; }
+    .signals .label { font-weight: 600; color: #475569; }
+    .signals .value { font-family: monospace; color: #1e293b; word-break: break-all; }
+
+    .pii-list { list-style: none; font-size: 0.8rem; display: flex; flex-direction: column; gap: 0.4rem; }
+    .pii-list li { display: flex; align-items: center; gap: 0.4rem; color: #64748b; }
+    .pii-list li::before { content: "✗"; color: #ef4444; font-weight: 700; }
+
+    .proof-raw { margin-top: 0.75rem; }
+    .proof-raw summary { font-size: 0.75rem; color: #64748b; cursor: pointer; }
+    .proof-raw pre { margin-top: 0.5rem; font-size: 0.68rem; color: #475569; background: #f1f5f9; padding: 0.6rem; border-radius: 6px; overflow-x: auto; white-space: pre-wrap; word-break: break-all; }
+
+    .pii-note { margin-top: 0.75rem; font-size: 0.75rem; color: #15803d; font-weight: 600; }
+    .trad-note { margin-top: 0.75rem; font-size: 0.75rem; color: #b91c1c; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>ZeroVerify</h1>
+  <span>Mock Merchant</span>
+</header>
+
+<div class="hero">
+  <h2>Student Discount Checkout</h2>
+  <p>Prove you're a student to unlock your discount — without sharing your name, email, or student ID.</p>
+  <a class="btn" href="{{ .VerifyURL }}">Verify Student Status</a>
+</div>
+
+<div class="feed-header">
+  <div class="dot"></div>
+  <h3>Live Verifications</h3>
+</div>
+
+<div id="feed">
+  <p class="empty" id="empty-msg">Waiting for verifications…</p>
+</div>
+
+<script>
+const SIGNAL_LABELS = ["Challenge Echo", "Pseudonym Hash", "Challenge Nonce", "Current Time (Unix)"];
+
+function truncate(s, n) {
+  return s.length > n ? s.slice(0, n) + "…" : s;
+}
+
+function renderCard(r) {
+  const isValid = r.valid;
+  const time = new Date(r.received_at).toLocaleTimeString();
+  const signals = (r.public_signals || []).map((v, i) => `
+    <li>
+      <span class="label">${SIGNAL_LABELS[i] ?? "Signal " + i}</span>
+      <span class="value">${truncate(v, 64)}</span>
+    </li>`).join("");
+
+  const proof = JSON.parse(r.proof_json || "{}");
+  const proofDisplay = JSON.stringify(proof, null, 2);
+
+  const card = document.createElement("div");
+  card.className = "card";
+  card.innerHTML = `
+    <div class="card-header">
+      <span class="badge ${isValid ? "valid" : "invalid"}">
+        ${isValid ? "✓ Valid" : "✗ Invalid"}
+      </span>
+      <span class="timestamp">${time}</span>
+    </div>
+    <div class="two-col">
+      <div class="panel zv">
+        <h4>What ZeroVerify sent</h4>
+        <ul class="signals">${signals}</ul>
+        <details class="proof-raw">
+          <summary>Raw proof</summary>
+          <pre>${proofDisplay}</pre>
+        </details>
+        <p class="pii-note">PII transmitted: 0 fields</p>
+      </div>
+      <div class="panel trad">
+        <h4>What traditional systems require</h4>
+        <ul class="pii-list">
+          <li>First &amp; last name</li>
+          <li>Date of birth</li>
+          <li>Student ID number</li>
+          <li>University email</li>
+          <li>Enrollment certificate</li>
+          <li>Physical or digital ID scan</li>
+        </ul>
+        <p class="trad-note">All stored on merchant servers — one breach away from exposure.</p>
+      </div>
+    </div>
+    ${!isValid ? `<p style="margin-top:.75rem;font-size:.8rem;color:#b91c1c;">Reason: ${r.error}</p>` : ""}
+  `;
+  return card;
+}
+
+const feed = document.getElementById("feed");
+const emptyMsg = document.getElementById("empty-msg");
+
+const es = new EventSource("/events");
+es.addEventListener("verification", (e) => {
+  const r = JSON.parse(e.data);
+  if (emptyMsg) emptyMsg.remove();
+  feed.prepend(renderCard(r));
+});
+</script>
+
+</body>
+</html>
