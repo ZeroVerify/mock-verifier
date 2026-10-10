@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/zeroverify/mock-verifier/internal/store"
 	"github.com/zeroverify/mock-verifier/internal/templates"
 )
 
@@ -16,17 +17,21 @@ var walletBaseURL = func() string {
 	return "https://wallet.zeroverify.net"
 }()
 
-func Home(w http.ResponseWriter, r *http.Request) {
-	challenge := randomDecimalChallenge()
-	baseURL := publicBaseURL(r)
+// Home renders the page with a fresh challenge. The challenge is remembered so Verify only accepts nonces issued here.
+func Home(challenges *store.Challenges) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		challenge := randomDecimalChallenge()
+		challenges.Issue(challenge)
+		baseURL := publicBaseURL(r)
 
-	verifyURL := fmt.Sprintf(
-		"%s/prove?proof_type=student_status&verifier_id=Mock+Merchant&challenge=%s&callback=%s/verify",
-		walletBaseURL, challenge, baseURL,
-	)
+		verifyURL := fmt.Sprintf(
+			"%s/prove?proof_type=student_status&verifier_id=Mock+Merchant&challenge=%s&callback=%s/verify",
+			walletBaseURL, challenge, baseURL,
+		)
 
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	templates.Home.Execute(w, struct{ VerifyURL string }{verifyURL})
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		templates.Home.Execute(w, struct{ VerifyURL string }{verifyURL})
+	}
 }
 
 func publicBaseURL(r *http.Request) string {

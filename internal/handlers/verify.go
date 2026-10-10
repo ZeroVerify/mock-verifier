@@ -3,16 +3,16 @@ package handlers
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
 	"time"
 
 	"github.com/iden3/go-rapidsnark/types"
-	verifier "github.com/zeroverify/verifier-go"
 	"github.com/zeroverify/mock-verifier/internal/hub"
 	"github.com/zeroverify/mock-verifier/internal/store"
+	verifier "github.com/zeroverify/verifier-go"
 )
 
 type incomingProof struct {
@@ -29,10 +29,25 @@ type eventPayload struct {
 	ReceivedAt    string   `json:"received_at"`
 }
 
-func Verify(s *store.Store, h *hub.Hub, fetcher *verifier.Fetcher) http.HandlerFunc {
+// challengeSignalIndex is the position of challenge_nonce in the student_status public signals:
+// [out_nonce, pseudonym_hash, revocation_index, Ax, Ay, challenge_nonce, now].
+const (
+	challengeSignalIndex = 5
+	studentSignalCount   = 7
+)
+
+// Verify checks a proof the way a real relying party should: the nonce must be one this verifier issued (once), and the
+// SDK then checks the issuer key, the clock, the revocation bit and the Groth16 proof. Checking only the Groth16 proof
+// would accept a credential the prover signed themselves.
+func Verify(s *store.Store, h *hub.Hub, client *verifier.Client, challenges *store.Challenges) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
+		if err != nil {
+			http.Error(w, "request too large or unreadable", http.StatusBadRequest)
+			return
+		}
 		var payload incomingProof
-		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		if err := json.Unmarshal(body, &payload); err != nil {
 			http.Error(w, "invalid JSON", http.StatusBadRequest)
 			return
 		}
@@ -51,25 +66,27 @@ func Verify(s *store.Store, h *hub.Hub, fetcher *verifier.Fetcher) http.HandlerF
 			ReceivedAt:    time.Now(),
 		}
 
-		if os.Getenv("SKIP_VERIFICATION") == "1" {
+		challenge := ""
+		if len(payload.PublicSignals) == studentSignalCount {
+			challenge = payload.PublicSignals[challengeSignalIndex]
+		}
+
+		switch {
+		case os.Getenv("SKIP_VERIFICATION") == "1":
 			result.Valid = true
-		} else {
+		case challenge == "" || !challenges.Consume(challenge):
+			result.Error = "unknown_challenge"
+		default:
 			ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 			defer cancel()
-
-			vkJSON, err := fetcher.VerificationKey(ctx, "student_status")
+			vr, err := client.VerifySubmission(ctx, body, "student_status", challenge)
 			if err != nil {
-				slog.Error("fetching vkey", "err", err)
-				result.Error = fmt.Sprintf("failed to fetch verification key: %v", err)
+				slog.Error("verifying submission", "err", err)
+				result.Error = err.Error()
 			} else {
-				vr, err := verifier.VerifyProof(proofJSON, vkJSON, payload.PublicSignals)
-				if err != nil {
-					result.Error = err.Error()
-				} else {
-					result.Valid = vr.Valid
-					if !vr.Valid {
-						result.Error = vr.Reason
-					}
+				result.Valid = vr.Valid
+				if !vr.Valid {
+					result.Error = vr.Reason
 				}
 			}
 		}

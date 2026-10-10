@@ -2,11 +2,12 @@ package server
 
 import (
 	"net/http"
+	"time"
 
-	verifier "github.com/zeroverify/verifier-go"
 	"github.com/zeroverify/mock-verifier/internal/handlers"
 	"github.com/zeroverify/mock-verifier/internal/hub"
 	"github.com/zeroverify/mock-verifier/internal/store"
+	verifier "github.com/zeroverify/verifier-go"
 )
 
 type Server struct {
@@ -16,11 +17,12 @@ type Server struct {
 func New() *Server {
 	s := store.New()
 	h := hub.New()
-	fetcher := verifier.NewFetcher().Build()
+	client := verifier.NewClient(verifier.NewFetcher().Build())
+	challenges := store.NewChallenges(10 * time.Minute)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /", handlers.Home)
-	mux.HandleFunc("POST /verify", handlers.Verify(s, h, fetcher))
+	mux.HandleFunc("GET /", handlers.Home(challenges))
+	mux.HandleFunc("POST /verify", handlers.Verify(s, h, client, challenges))
 	mux.HandleFunc("GET /events", handlers.Events(h))
 
 	return &Server{mux: mux}
